@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ItineraryModal } from "./itinerary-modal";
 import { ProfileMenu } from "./profile-menu";
+import { SavedPlacesClient } from "./saved-places-client";
 
 function HomeIcon() {
   return (
@@ -60,8 +62,11 @@ function SettingsIcon() {
 }
 
 export default function DashboardClient({ fullName, email }: { fullName: string; email: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [itineraryOpen, setItineraryOpen] = useState(false);
   const firstName = fullName.trim().split(/\s+/)[0] ?? fullName;
+  const savedPlacesOpen = searchParams.get("view") === "saved-places";
 
   return (
     <div className="relative flex min-h-screen items-center justify-center p-4 sm:p-8">
@@ -84,14 +89,18 @@ export default function DashboardClient({ fullName, email }: { fullName: string;
                 <HomeIcon />
                 <span className="text-sm font-medium">Home</span>
               </div>
-              <div className="flex items-center gap-3 rounded-xl bg-blue-50 px-3 py-2.5 text-blue-600">
+              <div className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${savedPlacesOpen ? "text-slate-500" : "bg-blue-50 text-blue-600"}`}>
                 <TripsIcon />
-                <span className="text-sm font-semibold">Trips</span>
+                <span className={`text-sm ${savedPlacesOpen ? "font-medium" : "font-semibold"}`}>Trips</span>
               </div>
-              <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-slate-500">
+              <button
+                type="button"
+                onClick={() => router.replace("/dashboard?view=saved-places", { scroll: false })}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${savedPlacesOpen ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:bg-slate-100"}`}
+              >
                 <SavedPlacesIcon />
-                <span className="text-sm font-medium">Saved places</span>
-              </div>
+                <span className={`text-sm ${savedPlacesOpen ? "font-semibold" : "font-medium"}`}>Saved places</span>
+              </button>
               <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-slate-500">
                 <SettingsIcon />
                 <span className="text-sm font-medium">Settings</span>
@@ -104,6 +113,10 @@ export default function DashboardClient({ fullName, email }: { fullName: string;
 
         {/* Main area */}
         <main className="flex-1 overflow-y-auto p-8 sm:p-10">
+          {savedPlacesOpen ? (
+            <SavedPlacesClient />
+          ) : (
+            <>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
@@ -143,6 +156,8 @@ export default function DashboardClient({ fullName, email }: { fullName: string;
               </button>
             </div>
           </div>
+            </>
+          )}
         </main>
       </div>
       <ItineraryModal open={itineraryOpen} onClose={() => setItineraryOpen(false)} />
