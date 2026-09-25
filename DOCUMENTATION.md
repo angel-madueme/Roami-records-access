@@ -67,6 +67,8 @@ Deliberately, this slice does not include editing, saving, sharing, or exporting
 8. To expand a completed itinerary, the signed-in client sends `POST /api/itinerary/[id]/expand`. The route enforces the 10-requests-per-user-per-10-minutes limit, sends the current structured itinerary to `lib/deepseek.ts`, and uses DeepSeek V4.1 Flash through the official OpenAI SDK with `https://api.deepseek.com` as the overridden base URL. The response is independently validated with Zod and retried once only for schema-validation failure. A successful response updates existing activity notes and appends new activities in one database transaction, so provider, timeout, and validation failures leave the current itinerary unchanged.
 
 9. The authenticated dashboard opens the client ItineraryModal from the Create from notes button in the empty-state card. The upload body keeps the selected file preview while the button shows the wave-spinner loading state and cosmetic pacing copy as the client polls GET /api/itinerary/job/[id] every second. A DONE response transitions directly to the result body, which calls POST /api/itinerary/[id]/expand; a FAILED response opens a smaller stacked error overlay above the still-visible upload modal. The old standalone Processing and Failed body screens are no longer used. There is no standalone itinerary page route; the flow stays inside the dismissible modal.
+
+10. The Saved Places API is exposed through four route handlers. `POST /api/saved-places` validates the destination, optional note, and status, generates a publicId, and creates the authenticated user's record. `GET /api/saved-places` lists only rows scoped directly to the authenticated user's userId. `GET /api/saved-places/[publicId]` uses the shared ownership guard to return one owned record, while `DELETE /api/saved-places/[publicId]` uses the same guard and atomically writes a `DeletionAuditLog` snapshot before deleting the row in one transaction. These handlers return 401 when there is no valid session and 403 when a valid session cannot access the requested SavedPlace.
 ## 4. The Data Model
 
 `ItineraryJob` records every uploaded image and tracks the asynchronous extraction lifecycle through `PENDING`, `PROCESSING`, `DONE`, or `FAILED`, including attempts, failure details, and the local filesystem storage key. `Itinerary` stores one successful structured result for a job, including the destination, dates, optional Unsplash photo attribution, and timestamps. `ItineraryActivity` stores the ordered, categorized activities belonging to an itinerary.
@@ -75,6 +77,16 @@ The `Itinerary.jobId` unique constraint enforces one itinerary per job, preventi
 
 `SavedPlace` stores one destination a signed-in user has saved, with an internal `id`, the externally safe 12-character `publicId`, an optional note, a status, and timestamps. Its `publicId` unique constraint prevents identifier collisions, while the `userId` index supports ownership-scoped list queries. `DeletionAuditLog` records each deletion using the deleting user's id plus snapshotted destination and publicId data. It intentionally does not use a foreign key to `SavedPlace`: the referenced row will not exist after deletion, so a foreign key would either block the deletion or be left dangling.
 ## 5. The Concepts
+
+### Scoping the query versus checking after the fetch
+
+**What it is:** Query scoping places the authenticated user's `userId` directly in the database predicate that retrieves a SavedPlace. Fetch-then-check instead retrieves by a publicId first and compares ownership afterward in application code.
+
+**Why it's needed:** A fetch-then-check pattern still executes a database read for data the user has no right to see, and a missed or buggy check anywhere in that path silently leaks it. Scoping the query makes the leak structurally impossible rather than dependent on remembering a check.
+
+**How I implemented it:** `lib/saved-places-guard.ts` contains the single shared `findOwnedSavedPlace` function every detail and delete route uses. It queries with both `userId` and `publicId`. The list route similarly puts the session's `userId` directly in its `where` clause, and deletion keeps both values in its transactional `deleteMany` predicate.
+
+**What I chose against:** I rejected fetching by `publicId` alone and then comparing the returned row's `userId` to the session in application code because it is an extra step that can be forgotten in a future route, whereas baking `userId` into the query itself cannot be skipped.
 
 ### Structured output and schema validation
 
