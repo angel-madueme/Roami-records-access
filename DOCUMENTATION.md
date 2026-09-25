@@ -72,6 +72,8 @@ Deliberately, this slice does not include editing, saving, sharing, or exporting
 `ItineraryJob` records every uploaded image and tracks the asynchronous extraction lifecycle through `PENDING`, `PROCESSING`, `DONE`, or `FAILED`, including attempts, failure details, and the local filesystem storage key. `Itinerary` stores one successful structured result for a job, including the destination, dates, optional Unsplash photo attribution, and timestamps. `ItineraryActivity` stores the ordered, categorized activities belonging to an itinerary.
 
 The `Itinerary.jobId` unique constraint enforces one itinerary per job, preventing a single upload job from somehow producing two itinerary records. Foreign-key relations connect jobs to users and itineraries to jobs and activities, while the activity `order` value preserves display sequence.
+
+`SavedPlace` stores one destination a signed-in user has saved, with an internal `id`, the externally safe 12-character `publicId`, an optional note, a status, and timestamps. Its `publicId` unique constraint prevents identifier collisions, while the `userId` index supports ownership-scoped list queries. `DeletionAuditLog` records each deletion using the deleting user's id plus snapshotted destination and publicId data. It intentionally does not use a foreign key to `SavedPlace`: the referenced row will not exist after deletion, so a foreign key would either block the deletion or be left dangling.
 ## 5. The Concepts
 
 ### Structured output and schema validation

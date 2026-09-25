@@ -20,6 +20,8 @@ model User {
   passwordResetTokens    PasswordResetToken[]
   sessions               Session[]
   itineraryJobs          ItineraryJob[]
+  savedPlaces            SavedPlace[]
+  deletionAuditLogs      DeletionAuditLog[]
 }
 
 model EmailVerificationCode {
@@ -118,4 +120,37 @@ model ItineraryActivity {
   itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
 
   @@index([itineraryId])
+}
+
+enum SavedPlaceStatus {
+  WISHLIST
+  PLANNED
+  VISITED
+}
+
+model SavedPlace {
+  id          String           @id @default(cuid())
+  publicId    String           @unique
+  userId      String
+  destination String
+  note        String?
+  status      SavedPlaceStatus @default(WISHLIST)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DeletionAuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  destination String
+  publicId    String
+  deletedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
