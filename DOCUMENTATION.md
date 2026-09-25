@@ -72,9 +72,76 @@ This project explicitly reuses both prior slices: the complete Assessment 1 auth
 
 10. The Saved Places API is exposed through four route handlers. `POST /api/saved-places` validates the destination, optional note, and status, generates a publicId, and creates the authenticated user's record. `GET /api/saved-places` lists only rows scoped directly to the authenticated user's userId. `GET /api/saved-places/[publicId]` uses the shared ownership guard to return one owned record, while `DELETE /api/saved-places/[publicId]` uses the same guard and atomically writes a `DeletionAuditLog` snapshot before deleting the row in one transaction. These handlers return 401 when there is no valid session and 403 when a valid session cannot access the requested SavedPlace.
 
-11. The dashboard sidebar's `Saved places` button updates the URL to `/dashboard?view=saved-places`, where `SavedPlacesClient` fetches the authenticated list and conditionally renders the empty state with `/images/illustrations/saved-places-empty-state.png` or the populated card grid. The create modal is rendered at `?view=saved-places&action=create` and submits to `POST /api/saved-places`; clicking a card opens `action=detail&ref=<publicId>`, which loads the detail API response. The detail modal's Delete button changes the URL to `action=delete&ref=<publicId>` for the stacked confirmation modal; confirmation calls `DELETE /api/saved-places/[publicId]`, refreshes the list, and returns to the base Saved Places URL. A manually substituted URL for another user's publicId stays in the detail state and displays the API's 403 error instead of showing the record.
+11. The dashboard sidebar's `Saved places` button updates the URL to `/dashboard?view=saved-places`, where `SavedPlacesClient` fetches the authenticated list and conditionally renders the empty state with `/images/illustrations/saved-places-empty-state.png` or the populated card grid.
 
-12. Saved Place creation starts a best-effort Unsplash lookup through the reused `lib/unsplash.ts` client after the database row has been created. The lookup is fire-and-forget, so a slow or failed photo service never blocks or fails saving the destination. The client immediately inserts the returned record with its gradient/map-pin fallback, then polls only that new record's detail endpoint once per second for up to six attempts. When enrichment succeeds, the card swaps to the returned photo without a reload and without attribution text; the detail modal renders the same photo with photographer and Unsplash attribution links. When no usable result exists, both views keep the fallback with no broken-image placeholder. Live evidence is recorded in `docs/evidence/saved-places-live-ui-2026-09-25.md`.
+   ![Saved Places empty state](<docs/evidence/empty-state.png>)
+
+   *The empty state is a genuine empty view with the shipped illustration and Save a place action.*
+
+   The create modal is rendered at `?view=saved-places&action=create` and submits to `POST /api/saved-places`.
+
+   ![Saved Places create modal](<docs/evidence/create-modal.png>)
+
+   *The create action is presented as a URL-addressable modal over the Saved Places screen.*
+
+   Clicking a card opens `action=detail&ref=<publicId>`, which loads the detail API response.
+
+   ![Saved Places detail view with attribution](<docs/evidence/detail view with attribution.png>)
+
+   *The detail modal shows the destination photo together with its Unsplash attribution.*
+
+   The detail modal's Delete button changes the URL to `action=delete&ref=<publicId>` for the stacked confirmation modal; confirmation calls `DELETE /api/saved-places/[publicId]`, refreshes the list, and returns to the base Saved Places URL.
+
+   ![Saved Places delete confirmation modal](<docs/evidence/delete-confirmation-modal.png>)
+
+   *The destructive action requires an explicit confirmation before deletion.*
+
+   A manually substituted URL for another user's publicId stays in the detail state and displays the API's 403 error instead of showing the record.
+
+12. Saved Place creation starts a best-effort Unsplash lookup through the reused `lib/unsplash.ts` client after the database row has been created. The lookup is fire-and-forget, so a slow or failed photo service never blocks or fails saving the destination. The client immediately inserts the returned record with its gradient/map-pin fallback, then polls only that new record's detail endpoint once per second for up to six attempts. When enrichment succeeds, the card swaps to the returned photo without a reload and without attribution text; the detail modal renders the same photo with photographer and Unsplash attribution links. When no usable result exists, both views keep the fallback with no broken-image placeholder.
+
+   ![Saved Places photo fallback](<docs/evidence/the photo fallback.png>)
+
+   *The card fallback remains clean when enrichment returns no usable photo.*
+
+   The live-flow evidence record is reproduced here because it documents the save, six-poll fallback, no-result creation, detail, and deletion observations:
+
+   # Saved Places live-flow evidence — 2026-09-25
+
+   The live API-backed flow was run against the local Next.js server at `http://localhost:3000` using a real account created through the signup endpoint. The local browser automation surface was unavailable, so no screenshots were captured.
+
+   ## Observed live flow
+
+   ```text
+   SIGNUP 201
+   PHOTO_CREATE 201 {"publicId":"1HZWmoVaPPdZ","destination":"Paris, France","note":"Live photo enrichment evidence","unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null,"status":"PLANNED"}
+   PHOTO_POLL_1 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   PHOTO_POLL_2 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   PHOTO_POLL_3 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   PHOTO_POLL_4 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   PHOTO_POLL_5 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   PHOTO_POLL_6 200 {"unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null}
+   NO_PHOTO_CREATE 201 {"publicId":"D6FsvpLc3nuC","destination":"zzzz-no-unsplash-result-1790326817314","note":"Fallback evidence","unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null,"status":"WISHLIST"}
+   POPULATED_LIST 200 [Paris record, no-result record]
+   PHOTO_DETAIL 200 [Paris record with all Unsplash fields null]
+   DELETE_PHOTO 204
+   AFTER_DELETE_LIST 200 [no-result record only]
+   ```
+
+   The Paris record appeared immediately with the fallback fields null, remained saved, and completed all six individual detail polls without blocking the save. The no-result destination also returned 201 and remained available with null photo fields. Deleting the Paris record returned 204 and removed it from the subsequent list.
+
+   ## UI evidence status
+
+   - Empty state: not visually captured; the component renders the shipped empty-state illustration and Save a place action.
+   - Create modal: not visually captured; URL state and form implementation are present.
+   - Populated card: not visually captured; live list data was returned.
+   - Immediate fallback: API response showed null photo fields immediately after save.
+   - Photo transition: not observed because Unsplash returned no usable result in this environment for the tested destinations.
+   - Card attribution: source implementation passes `attribution={false}` for card previews.
+   - Detail attribution: source implementation retains attribution by default in `PhotoPanel`.
+   - Delete confirmation: not visually captured; delete endpoint returned 204.
+   - Post-delete list: live response omitted the deleted Paris record.
+   - No-result fallback: live creation succeeded with all three photo fields null.
 ## 4. The Data Model
 
 `ItineraryJob` records every uploaded image and tracks the asynchronous extraction lifecycle through `PENDING`, `PROCESSING`, `DONE`, or `FAILED`, including attempts, failure details, and the local filesystem storage key. `Itinerary` stores one successful structured result for a job, including the destination, dates, optional Unsplash photo attribution, and timestamps. `ItineraryActivity` stores the ordered, categorized activities belonging to an itinerary.
@@ -112,7 +179,45 @@ The `Itinerary.jobId` unique constraint enforces one itinerary per job, preventi
 
 **How I implemented it:** The detail and delete routes combine `userId` and `publicId` in the database lookup, and the list route only returns rows for the session user. The two-user evidence file records User B receiving an empty list and 403 responses for User A's publicId.
 
+![Direct-object-reference attempt blocked](<docs/evidence/url-substitution-blocked.png>)
+
+*A direct URL substitution using another user's publicId is blocked instead of returning the record.*
+
 **What I chose against:** I rejected relying on unguessable publicIds alone. Random identifiers reduce accidental discovery but do not establish ownership.
+
+### Access-control audit evidence
+
+The two-user attack test was performed through the actual signup flow. User A created a SavedPlace, and User B attempted to list, view, and delete it.
+
+#### Saved Places access-control evidence — 2026-09-25
+
+The two accounts below were created through the actual `POST /api/auth/signup` flow. They are synthetic test accounts.
+
+- User A: `records.a.1790325519@example.com`
+- User B: `records.b.1790325519@example.com`
+- User A saved-place publicId: `cDkFAxnG26e3`
+
+##### Signup and creation
+
+```text
+SIGNUP_A email=records.a.1790325519@example.com status=201 body={"userId":"cmugpmpvr000gt4i8mj8rzuxw","email":"records.a.1790325519@example.com"} cookiePresent=True
+SIGNUP_B email=records.b.1790325519@example.com status=201 body={"userId":"cmugpmrmq000kt4i8pd89fopn","email":"records.b.1790325519@example.com"} cookiePresent=True
+CREATE_A status=201 body={"publicId":"cDkFAxnG26e3","destination":"Test Destination for Access Control","note":"User A private record","unsplashImageUrl":null,"unsplashPhotographerName":null,"unsplashPhotographerUrl":null,"status":"WISHLIST","createdAt":"2026-09-25T08:39:51.776Z","updatedAt":"2026-09-25T08:39:51.776Z"}
+```
+
+##### User B mismatch tests
+
+```text
+LIST_B status=200 body=[] containsUserAPlace=False
+DETAIL_B status=403 body={"error":"You do not have access to this saved place."}
+DELETE_B status=403 body={"error":"You do not have access to this saved place."}
+```
+
+Interpretation: User B cannot see User A's record in the list and cannot retrieve or delete it by publicId. The server returns 403 for both direct ownership mismatches, as required by the PRD.
+
+##### Browser URL substitution
+
+The browser URL-substitution screenshot above is the visual evidence for navigating to `/dashboard?view=saved-places&action=detail&ref=cDkFAxnG26e3` as User B. The original evidence record also notes that the browser surface was unavailable for the automated capture session.
 
 ### Why raw database identifiers are not exposed
 
@@ -171,6 +276,28 @@ The `Itinerary.jobId` unique constraint enforces one itinerary per job, preventi
 **Why it's needed:** Fewer queries reduce latency and database load, while real counts expose the cost of an authorization design instead of hiding it behind an unmeasured claim.
 
 **How I implemented it:** Temporary Prisma query-event logging measured the current baseline: list 3 raw events / 2 application queries, detail 3 raw events / 2 application queries, and delete 7 raw events / 4 application SQL statements. Raw events include `SELECT 1`, `BEGIN`, and `COMMIT` where applicable. The full evidence is in `docs/evidence/saved-places-query-counts-2026-09-25.md`.
+
+#### Saved Places query-count evidence — 2026-09-25
+
+Temporary Prisma query-event logging was enabled in `lib/prisma.ts` on an isolated development server at `http://localhost:3002`. The logger was removed after measurement. Requests were run sequentially with one authenticated session and one SavedPlace (`publicId=uZb8IGc4y0b3`).
+
+| Action | Raw Prisma events | Application queries/statements | Observed operations |
+|---|---:|---:|---|
+| List | 3 | 2 | `SELECT 1`, session lookup, user-scoped SavedPlace list query |
+| Detail | 3 | 2 | `SELECT 1`, session lookup, combined userId/publicId lookup |
+| Delete | 7 | 4 SQL statements | `SELECT 1`, session lookup, combined ownership lookup, `BEGIN`, audit insert, scoped delete, `COMMIT` |
+
+The raw event count includes Prisma's connection `SELECT 1` and transaction-control events. The application-query count excludes `SELECT 1`, `BEGIN`, and `COMMIT` while retaining the session lookup and SavedPlace/audit statements.
+
+##### Request results
+
+```text
+LIST_STATUS 200
+DETAIL_STATUS 200
+DELETE_STATUS 204
+```
+
+No prior unoptimized implementation had been instrumented, so these are the current baseline counts rather than a before/after reduction. The detail and delete lookup events confirmed the ownership predicate contained both `userId` and `publicId`.
 
 **What I chose against:** I chose not to claim a before/after optimization reduction because no earlier unoptimized version was instrumented; these are honestly labeled baseline measurements.
 
