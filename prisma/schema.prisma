@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  fullName      String
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  emailVerificationCodes EmailVerificationCode[]
+  passwordResetTokens    PasswordResetToken[]
+  sessions               Session[]
+  itineraryJobs          ItineraryJob[]
+}
+
+model EmailVerificationCode {
+  id         String    @id @default(cuid())
+  userId     String
+  code       String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  code       String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum ItineraryJobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum ItineraryActivityCategory {
+  TRANSPORT
+  LODGING
+  FOOD
+  SIGHTSEEING
+  OTHER
+}
+
+model ItineraryJob {
+  id           String             @id @default(cuid())
+  userId       String
+  status       ItineraryJobStatus @default(PENDING)
+  attempts     Int                @default(0)
+  errorMessage String?
+  storageKey   String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itinerary Itinerary?
+
+  @@index([userId])
+}
+
+model Itinerary {
+  id                       String   @id @default(cuid())
+  jobId                    String   @unique
+  destination              String
+  startDate                DateTime?
+  endDate                  DateTime?
+  unsplashImageUrl         String?
+  unsplashPhotographerName String?
+  unsplashPhotographerUrl  String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  job        ItineraryJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  activities ItineraryActivity[]
+}
+
+model ItineraryActivity {
+  id          String                    @id @default(cuid())
+  itineraryId String
+  category    ItineraryActivityCategory
+  title       String
+  note        String
+  order       Int
+
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([itineraryId])
+}

@@ -1,0 +1,2 @@
+ALTER TABLE "Itinerary" ALTER COLUMN "startDate" DROP NOT NULL;
+ALTER TABLE "Itinerary" ALTER COLUMN "endDate" DROP NOT NULL;
