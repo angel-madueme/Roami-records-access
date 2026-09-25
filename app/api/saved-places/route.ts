@@ -2,8 +2,27 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateSession } from "@/lib/session";
 import { generatePublicId } from "@/lib/nanoid";
+import { findDestinationPhoto } from "@/lib/unsplash";
 import { createSavedPlaceSchema } from "@/lib/validation/saved-places";
 import { savedPlacePublicSelect } from "@/lib/saved-place-response";
+
+async function enrichSavedPlacePhoto(userId: string, publicId: string, destination: string): Promise<void> {
+  try {
+    const photo = await findDestinationPhoto(destination);
+    if (!photo) return;
+
+    await prisma.savedPlace.updateMany({
+      where: { userId, publicId },
+      data: {
+        unsplashImageUrl: photo.imageUrl,
+        unsplashPhotographerName: photo.photographerName,
+        unsplashPhotographerUrl: photo.photographerUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Saved place photo enrichment failed:", error);
+  }
+}
 
 export async function POST(request: Request) {
   const session = await validateSession();
@@ -30,6 +49,10 @@ export async function POST(request: Request) {
     },
     select: savedPlacePublicSelect,
   });
+
+  // Photo enrichment is deliberately fire-and-forget: saving the record must
+  // never wait for or fail because of an optional Unsplash lookup.
+  void enrichSavedPlacePhoto(session.userId, savedPlace.publicId, savedPlace.destination);
 
   return NextResponse.json(savedPlace, { status: 201 });
 }

@@ -134,6 +134,9 @@ model SavedPlace {
   userId      String
   destination String
   note        String?
+  unsplashImageUrl         String?
+  unsplashPhotographerName String?
+  unsplashPhotographerUrl  String?
   status      SavedPlaceStatus @default(WISHLIST)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
