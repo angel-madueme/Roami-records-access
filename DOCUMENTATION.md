@@ -4,6 +4,8 @@ This slice lets a signed-in Roami user upload a photo of messy trip notes. A bac
 
 Deliberately, this slice does not include editing, saving, sharing, or exporting the generated itinerary, and it does not provide multi-itinerary history. There are no additional product features behind this flow because the brief limits the scope to one upload-to-result-to-expand path. This project reuses the complete Assessment 1 authentication flow—signup, email verification, signin, forgot/reset password, session management, and the dashboard—rather than a stripped-down or seeded version. That reuse is a deliberate choice and is disclosed here as required by the brief.
 
+This project explicitly reuses both prior slices: the complete Assessment 1 authentication flow (signup, verification, signin, password recovery, sessions, and dashboard) and the complete Assessment 3 AI/Unsplash itinerary flow (Gemini extraction, DeepSeek expansion, and Unsplash photo lookup). Neither reused flow is the new graded scope of Assessment 4.
+
 ## 2. How To Run It
 
 1. Clone the repository, enter the project directory, and install dependencies:
@@ -72,7 +74,7 @@ Deliberately, this slice does not include editing, saving, sharing, or exporting
 
 11. The dashboard sidebar's `Saved places` button updates the URL to `/dashboard?view=saved-places`, where `SavedPlacesClient` fetches the authenticated list and conditionally renders the empty state with `/images/illustrations/saved-places-empty-state.png` or the populated card grid. The create modal is rendered at `?view=saved-places&action=create` and submits to `POST /api/saved-places`; clicking a card opens `action=detail&ref=<publicId>`, which loads the detail API response. The detail modal's Delete button changes the URL to `action=delete&ref=<publicId>` for the stacked confirmation modal; confirmation calls `DELETE /api/saved-places/[publicId]`, refreshes the list, and returns to the base Saved Places URL. A manually substituted URL for another user's publicId stays in the detail state and displays the API's 403 error instead of showing the record.
 
-12. Saved Place creation starts a best-effort Unsplash lookup through the reused `lib/unsplash.ts` client after the database row has been created. The lookup is fire-and-forget, so a slow or failed photo service never blocks or fails saving the destination. When enrichment succeeds, `SavedPlacesClient` renders the returned photo as the card and detail banner with photographer and Unsplash attribution links; when no usable result exists, both views keep the existing gradient/map-pin fallback with no broken-image placeholder.
+12. Saved Place creation starts a best-effort Unsplash lookup through the reused `lib/unsplash.ts` client after the database row has been created. The lookup is fire-and-forget, so a slow or failed photo service never blocks or fails saving the destination. The client immediately inserts the returned record with its gradient/map-pin fallback, then polls only that new record's detail endpoint once per second for up to six attempts. When enrichment succeeds, the card swaps to the returned photo without a reload and without attribution text; the detail modal renders the same photo with photographer and Unsplash attribution links. When no usable result exists, both views keep the fallback with no broken-image placeholder. Live evidence is recorded in `docs/evidence/saved-places-live-ui-2026-09-25.md`.
 ## 4. The Data Model
 
 `ItineraryJob` records every uploaded image and tracks the asynchronous extraction lifecycle through `PENDING`, `PROCESSING`, `DONE`, or `FAILED`, including attempts, failure details, and the local filesystem storage key. `Itinerary` stores one successful structured result for a job, including the destination, dates, optional Unsplash photo attribution, and timestamps. `ItineraryActivity` stores the ordered, categorized activities belonging to an itinerary.
@@ -91,6 +93,86 @@ The `Itinerary.jobId` unique constraint enforces one itinerary per job, preventi
 **How I implemented it:** `lib/saved-places-guard.ts` contains the single shared `findOwnedSavedPlace` function every detail and delete route uses. It queries with both `userId` and `publicId`. The list route similarly puts the session's `userId` directly in its `where` clause, and deletion keeps both values in its transactional `deleteMany` predicate.
 
 **What I chose against:** I rejected fetching by `publicId` alone and then comparing the returned row's `userId` to the session in application code because it is an extra step that can be forgotten in a future route, whereas baking `userId` into the query itself cannot be skipped.
+
+### Authentication versus authorization
+
+**What it is:** Authentication establishes who the requester is; authorization establishes whether that authenticated requester may access a particular record.
+
+**Why it's needed:** A valid session alone must not grant access to every SavedPlace. The security boundary is the combination of a valid session and ownership of the requested publicId.
+
+**How I implemented it:** Every Saved Places route calls `validateSession()` first and returns 401 when no valid session exists. List, detail, enrichment, and delete operations then scope their Prisma predicates by the session's `userId`; detail and delete return 403 for a valid but unauthorized session.
+
+**What I chose against:** I rejected treating authentication as sufficient authorization, because that would let any signed-in user probe another user's public identifiers.
+
+### Insecure direct object references
+
+**What it is:** An insecure direct object reference occurs when a caller changes an identifier in a URL or request and the server returns another user's record.
+
+**Why it's needed:** SavedPlace publicIds are intentionally addressable in URLs, so direct API and URL substitution are realistic attack paths rather than hypothetical UI misuse.
+
+**How I implemented it:** The detail and delete routes combine `userId` and `publicId` in the database lookup, and the list route only returns rows for the session user. The two-user evidence file records User B receiving an empty list and 403 responses for User A's publicId.
+
+**What I chose against:** I rejected relying on unguessable publicIds alone. Random identifiers reduce accidental discovery but do not establish ownership.
+
+### Why raw database identifiers are not exposed
+
+**What it is:** The internal Prisma `id` is a database implementation identifier, while `publicId` is the deliberate external identifier for SavedPlace URLs and responses.
+
+**Why it's needed:** Exposing internal identifiers couples the client to storage details and can reveal sequential or otherwise meaningful database identifiers that make probing easier.
+
+**How I implemented it:** `savedPlacePublicSelect` projects only `publicId`, destination data, status, timestamps, and optional photo fields. The detail route also returns a hand-written public projection, and every UI URL uses `ref=<publicId>`.
+
+**What I chose against:** I rejected returning the complete Prisma row from route handlers, even though it is convenient, because that would make accidental internal-id leakage structurally easy.
+
+### Audit logging
+
+**What it is:** An audit log is a durable record of a sensitive action, independent of the record being acted upon.
+
+**Why it's needed:** After a SavedPlace is deleted, its destination and public identifier must still be available to explain what was removed, by whom, and when.
+
+**How I implemented it:** DELETE snapshots `userId`, destination, publicId, and `deletedAt` into `DeletionAuditLog` before deleting the SavedPlace inside one Prisma transaction.
+
+**What I chose against:** I rejected a foreign key from the audit row to SavedPlace because the referenced row disappears during deletion; that would either block the delete or leave a dangling reference.
+
+### Page architecture with URL state
+
+**What it is:** URL-state architecture keeps the current view and modal stack in query parameters while one page conditionally renders the appropriate state.
+
+**Why it's needed:** Empty, populated, create, detail, and delete-confirm states must be independently reachable, bookmarkable, and recoverable through browser navigation.
+
+**How I implemented it:** `/dashboard?view=saved-places` renders the screen; `action=create`, `action=detail&ref=<publicId>`, and `action=delete&ref=<publicId>` render the stacked modal states. `router.replace` updates those parameters without a full reload.
+
+**What I chose against:** I rejected local component state as the sole modal source of truth, because a modal reachable only after clicking through the UI cannot be directly navigated to or restored from a URL.
+
+### Status codes: 401 versus 403
+
+**What it is:** 401 means the request has no valid authentication; 403 means the requester is authenticated but is not authorized for the requested resource.
+
+**Why it's needed:** The distinction lets clients handle sign-in state separately from ownership denial and avoids conflating identity with access rights.
+
+**How I implemented it:** All Saved Places routes return 401 when `validateSession()` fails. Detail and delete return 403 when a valid session cannot find an owned record for the supplied publicId.
+
+**What I chose against:** I rejected returning 401 for ownership mismatches, because that falsely describes an authenticated user as unauthenticated and obscures the authorization failure.
+
+### Database indexing
+
+**What it is:** An index is a database structure that accelerates lookups on columns used in predicates or ordering.
+
+**Why it's needed:** Every list request filters by userId, while detail and delete identify records by publicId; those access paths should not require broad table scans as data grows.
+
+**How I implemented it:** SavedPlace has a unique index on publicId and an index on userId. DeletionAuditLog has an index on userId.
+
+**What I chose against:** I rejected indexing only the internal id, because that is never the external lookup key and would not support the actual ownership-scoped access patterns.
+
+### Query count as a cost
+
+**What it is:** Query count is the number of database operations a request causes, including authentication, record lookup, audit writes, and transaction operations.
+
+**Why it's needed:** Fewer queries reduce latency and database load, while real counts expose the cost of an authorization design instead of hiding it behind an unmeasured claim.
+
+**How I implemented it:** Temporary Prisma query-event logging measured the current baseline: list 3 raw events / 2 application queries, detail 3 raw events / 2 application queries, and delete 7 raw events / 4 application SQL statements. Raw events include `SELECT 1`, `BEGIN`, and `COMMIT` where applicable. The full evidence is in `docs/evidence/saved-places-query-counts-2026-09-25.md`.
+
+**What I chose against:** I chose not to claim a before/after optimization reduction because no earlier unoptimized version was instrumented; these are honestly labeled baseline measurements.
 
 ### Structured output and schema validation
 
@@ -198,8 +280,9 @@ Fix: the project switched to `gemini-3-flash-preview`, Google's own documented d
 - There is no retry on Gemini or DeepSeek timeouts or provider errors. Retries apply only to schema-validation failures, per the documented retry policy.
 - There is no multi-itinerary history, editing, sharing, or export. This slice is strictly one upload-to-result-to-expand flow, per PRD Section 6.
 - Uploaded images use local filesystem storage, not real cloud object storage. This is documented as the local-development equivalent per PRD Section 11, meaning uploaded files do not survive deployment to a different host without additional work.
-- The Unsplash no-result path is implemented and handles failures and empty results gracefully, but it was not exercised against a confirmed real destination with no available photos during testing.
-- Unsplash photo enrichment is best-effort and asynchronous: a newly created place can briefly render without a photo until the list is refreshed, and a provider failure leaves the clean gradient/map-pin fallback. Editing is out of scope, so photos are not re-fetched for destination-name changes.
+- The Unsplash no-result path is implemented and handles failures and empty results gracefully. A live synthetic no-result destination was exercised successfully; a confirmed real destination with no available photo was not.
+- Unsplash photo enrichment is best-effort and asynchronous. A newly created card starts with the clean gradient/map-pin fallback, then polls only that record once per second for up to six attempts; a successful response swaps in the photo without a reload, while a provider failure or six null responses permanently leaves the fallback for that card. Card previews intentionally omit attribution, while the detail modal includes the photographer and Unsplash links. Editing is out of scope, so photos are not re-fetched for destination-name changes.
+- Live UI screenshots and the browser URL-substitution attack walkthrough were not captured because the available environment did not expose a browser surface. API access-control, query-count, and live-flow outputs are preserved under `docs/evidence/`.
 
 ## 8. If I Built This Again
 
