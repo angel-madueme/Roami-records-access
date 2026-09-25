@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { CalendarDays, Heart, MapPin, Plus, Star, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -33,34 +34,6 @@ const cardGradients = [
   "from-emerald-200 via-cyan-100 to-sky-100",
 ];
 
-function CloseIcon() {
-  return <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
-}
-
-function PlusIcon() {
-  return <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
-}
-
-function HeartIcon({ filled = false }: { filled?: boolean }) {
-  return <svg viewBox="0 0 20 20" className="h-4 w-4" fill={filled ? "currentColor" : "none"} aria-hidden="true"><path d="M10 17S3.5 12.4 3.5 7.9A3.4 3.4 0 0 1 10 6a3.4 3.4 0 0 1 6.5 1.9C16.5 12.4 10 17 10 17Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>;
-}
-
-function CalendarIcon() {
-  return <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" /><path d="M6.5 3v3M13.5 3v3M3.5 8h13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
-}
-
-function StarIcon() {
-  return <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="m10 2.8 2.1 4.4 4.9.7-3.5 3.4.8 4.8-4.3-2.3-4.3 2.3.8-4.8L3 7.9l4.9-.7L10 2.8Z" /></svg>;
-}
-
-function TrashIcon() {
-  return <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h6l1-13M10 10v7M14 10v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
-
-function PinIcon() {
-  return <svg viewBox="0 0 48 48" className="h-16 w-16 text-white/80" fill="none" aria-hidden="true"><path d="M24 43s12-13 12-23A12 12 0 1 0 12 20c0 10 12 23 12 23Z" fill="currentColor" opacity=".9" /><circle cx="24" cy="19" r="4.5" fill="#3b82f6" /></svg>;
-}
-
 function statusClass(status: SavedPlaceStatus) {
   if (status === "PLANNED") return "bg-emerald-50 text-emerald-600";
   if (status === "VISITED") return "bg-violet-50 text-violet-600";
@@ -68,31 +41,31 @@ function statusClass(status: SavedPlaceStatus) {
 }
 
 function StatusBadge({ status }: { status: SavedPlaceStatus }) {
-  return <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${statusClass(status)}`}>{status === "PLANNED" ? <CalendarIcon /> : status === "VISITED" ? <StarIcon /> : <HeartIcon filled />}{statusLabels[status]}</span>;
+  return <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${statusClass(status)}`}>{status === "PLANNED" ? <CalendarDays size={16} strokeWidth={1.8} aria-hidden="true" /> : status === "VISITED" ? <Star size={16} strokeWidth={1.8} fill="currentColor" aria-hidden="true" /> : <Heart size={16} strokeWidth={1.8} fill="currentColor" aria-hidden="true" />}{statusLabels[status]}</span>;
 }
 
-function PhotoPanel({ place, detail = false }: { place: SavedPlace; detail?: boolean }) {
+function PhotoPanel({ place, detail = false, attribution = true }: { place: SavedPlace; detail?: boolean; attribution?: boolean }) {
   if (!place.unsplashImageUrl) return null;
   const hasAttribution = Boolean(place.unsplashPhotographerName && place.unsplashPhotographerUrl);
-  return <div className={`relative overflow-hidden ${detail ? "mt-8 h-52 rounded-2xl" : "h-36"}`}>
+  return <div className={`relative w-full overflow-hidden ${detail ? "mt-8 h-52 rounded-2xl" : "h-36"}`}>
     {/* Unsplash URLs are runtime data, so a native image avoids expanding next.config for each remote host. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={place.unsplashImageUrl} alt={`Photo of ${place.destination}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-    {hasAttribution && <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/75 to-transparent px-3 pb-2 pt-7 text-[10px] text-white/90">
+    <img src={place.unsplashImageUrl} alt={`Photo of ${place.destination}`} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+    {attribution && hasAttribution && <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/75 to-transparent px-3 pb-2 pt-7 text-[10px] text-white/90">
       Photo by <a href={place.unsplashPhotographerUrl ?? undefined} target="_blank" rel="noreferrer" className="font-semibold underline">{place.unsplashPhotographerName}</a> on <a href="https://unsplash.com" target="_blank" rel="noreferrer" className="font-semibold underline">Unsplash</a>
     </div>}
   </div>;
 }
 
 function ModalShell({ children, labelledBy, onClose, wide = false }: { children: React.ReactNode; labelledBy: string; onClose: () => void; wide?: boolean }) {
-  return <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/25 p-4 backdrop-blur-sm sm:p-8" role="presentation"><div className={`relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-[2rem] bg-white p-7 shadow-2xl shadow-slate-900/20 sm:p-10 ${wide ? "max-w-3xl" : "max-w-xl"}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}><button type="button" onClick={onClose} aria-label="Close" className="absolute right-6 top-6 rounded-full bg-slate-100 p-3 text-slate-700 transition hover:bg-slate-200"><CloseIcon /></button>{children}</div></div>;
+  return <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/25 p-4 backdrop-blur-sm sm:p-8" role="presentation"><div className={`relative max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-[2rem] bg-white p-7 shadow-2xl shadow-slate-900/20 sm:p-10 ${wide ? "max-w-3xl" : "max-w-xl"}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy}><button type="button" onClick={onClose} aria-label="Close" className="absolute right-6 top-6 rounded-full bg-slate-100 p-3 text-slate-700 transition hover:bg-slate-200"><X size={24} strokeWidth={2} aria-hidden="true" /></button>{children}</div></div>;
 }
 
 function ErrorMessage({ message }: { message: string }) {
   return <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{message}</p>;
 }
 
-function CreateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
+function CreateModal({ onClose, onSaved }: { onClose: () => void; onSaved: (place: SavedPlace) => void }) {
   const [destination, setDestination] = useState("");
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<SavedPlaceStatus>("WISHLIST");
@@ -109,7 +82,7 @@ function CreateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
         const body = await response.json().catch(() => null);
         throw new Error(body?.error ?? "We couldn't save this place.");
       }
-      await onSaved();
+      onSaved(await response.json() as SavedPlace);
       onClose();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "We couldn't save this place.");
@@ -122,7 +95,7 @@ function CreateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
 }
 
 function DetailModal({ place, error, onClose, onDelete }: { place: SavedPlace | null; error: string | null; onClose: () => void; onDelete: () => void }) {
-  return <ModalShell labelledBy="saved-place-detail-title" onClose={onClose} wide><h2 id="saved-place-detail-title" className="pr-14 text-4xl font-extrabold tracking-tight text-slate-950">{place?.destination ?? "Saved place"}</h2>{error ? <div className="mt-10 space-y-5"><ErrorMessage message={error} /><button type="button" onClick={onClose} className="rounded-2xl bg-slate-100 px-7 py-3.5 font-semibold text-slate-700 transition hover:bg-slate-200">Back to saved places</button></div> : !place ? <div className="mt-10 flex items-center gap-3 text-slate-500"><span className="wave-spinner"><i /><i /><i /></span>Loading saved place...</div> : <><div className="mt-6"><StatusBadge status={place.status} /></div><PhotoPanel place={place} detail /><div className="mt-10"><h3 className="text-lg font-bold text-slate-500">Note</h3><div className="mt-3 min-h-32 rounded-2xl border border-slate-200 bg-slate-50/60 px-6 py-5 text-lg leading-8 text-slate-800">{place.note || "No note added for this place."}</div></div><div className="mt-8 flex justify-end"><button type="button" onClick={onDelete} className="inline-flex items-center gap-3 rounded-2xl bg-red-600 px-10 py-4 text-lg font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-red-700"><TrashIcon />Delete</button></div></>}</ModalShell>;
+  return <ModalShell labelledBy="saved-place-detail-title" onClose={onClose} wide><h2 id="saved-place-detail-title" className="pr-14 text-4xl font-extrabold tracking-tight text-slate-950">{place?.destination ?? "Saved place"}</h2>{error ? <div className="mt-10 space-y-5"><ErrorMessage message={error} /><button type="button" onClick={onClose} className="rounded-2xl bg-slate-100 px-7 py-3.5 font-semibold text-slate-700 transition hover:bg-slate-200">Back to saved places</button></div> : !place ? <div className="mt-10 flex items-center gap-3 text-slate-500"><span className="wave-spinner"><i /><i /><i /></span>Loading saved place...</div> : <><div className="mt-6"><StatusBadge status={place.status} /></div><PhotoPanel place={place} detail /><div className="mt-10"><h3 className="text-lg font-bold text-slate-500">Note</h3><div className="mt-3 min-h-32 rounded-2xl border border-slate-200 bg-slate-50/60 px-6 py-5 text-lg leading-8 text-slate-800">{place.note || "No note added for this place."}</div></div><div className="mt-8 flex justify-end"><button type="button" onClick={onDelete} className="inline-flex items-center gap-3 rounded-2xl bg-red-600 px-10 py-4 text-lg font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-red-700"><Trash2 size={20} strokeWidth={1.8} aria-hidden="true" />Delete</button></div></>}</ModalShell>;
 }
 
 function DeleteModal({ place, onClose, onDeleted }: { place: SavedPlace | null; onClose: () => void; onDeleted: () => Promise<void> }) {
@@ -190,15 +163,36 @@ export function SavedPlacesClient() {
   const openCreate = () => router.replace("/dashboard?view=saved-places&action=create", { scroll: false });
   const openDetail = (publicId: string) => router.replace(`/dashboard?view=saved-places&action=detail&ref=${encodeURIComponent(publicId)}`, { scroll: false });
   const openDelete = () => { if (ref) router.replace(`/dashboard?view=saved-places&action=delete&ref=${encodeURIComponent(ref)}`, { scroll: false }); };
-  async function handleSaved() { await refreshPlaces(); }
+  function pollForPhoto(publicId: string) {
+    void (async () => {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        try {
+          const response = await fetch(`/api/saved-places/${encodeURIComponent(publicId)}`);
+          if (!response.ok) return;
+          const place = await response.json() as SavedPlace;
+          if (!place.unsplashImageUrl) continue;
+          setPlaces((currentPlaces) => currentPlaces.map((currentPlace) => currentPlace.publicId === publicId ? place : currentPlace));
+          return;
+        } catch {
+          return;
+        }
+      }
+    })();
+  }
+
+  function handleSaved(place: SavedPlace) {
+    setPlaces((currentPlaces) => [place, ...currentPlaces.filter((currentPlace) => currentPlace.publicId !== place.publicId)]);
+    pollForPhoto(place.publicId);
+  }
   async function handleDeleted() { await refreshPlaces(); openBase(); }
   const visibleDetail = detail?.publicId === ref ? detail : null;
   const visibleDetailError = detailError?.ref === ref ? detailError.message : null;
 
   return <>
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-extrabold tracking-tight text-slate-950">Saved places</h1><p className="mt-2 text-base text-slate-500">Places you&apos;ve saved for your next trip.</p></div>{!loading && places.length > 0 && <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"><PlusIcon />Save a place</button>}</div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-extrabold tracking-tight text-slate-950">Saved places</h1><p className="mt-2 text-base text-slate-500">Places you&apos;ve saved for your next trip.</p></div>{!loading && places.length > 0 && <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"><Plus size={20} strokeWidth={2} aria-hidden="true" />Save a place</button>}</div>
     {listError && <div className="mt-8"><ErrorMessage message={listError} /></div>}
-    {loading ? <div className="mt-8 flex min-h-[32rem] items-center justify-center rounded-3xl border border-slate-100"><span className="wave-spinner"><i /><i /><i /></span><span className="ml-3 text-sm text-slate-500">Loading your saved places...</span></div> : places.length === 0 ? <div className="mt-8 flex min-h-[32rem] flex-col items-center justify-center rounded-3xl border border-slate-100 px-6 py-12 text-center"><div className="relative h-52 w-72"><Image src="/images/illustrations/saved-places-empty-state.png" alt="Map with a location pin" fill className="object-contain" /></div><h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">No saved places yet</h2><p className="mt-2 max-w-lg text-base text-slate-500">Save a destination you&apos;re thinking about, and find it here later.</p><button type="button" onClick={openCreate} className="mt-7 rounded-xl bg-blue-600 px-16 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700">Save a place</button></div> : <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{places.map((place, index) => <button key={place.publicId} type="button" onClick={() => openDetail(place.publicId)} className="group overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10"><div className={`flex h-36 items-center justify-center bg-gradient-to-br ${cardGradients[index % cardGradients.length]}`}>{place.unsplashImageUrl ? <PhotoPanel place={place} /> : <PinIcon />}</div><div className="p-5"><StatusBadge status={place.status} /><h2 className="mt-4 truncate text-lg font-extrabold text-slate-950">{place.destination}</h2><p className="mt-1.5 min-h-12 line-clamp-2 text-sm leading-6 text-slate-500">{place.note || "No note added yet."}</p></div></button>)}</div>}
+    {loading ? <div className="mt-8 flex min-h-[32rem] items-center justify-center rounded-3xl border border-slate-100"><span className="wave-spinner"><i /><i /><i /></span><span className="ml-3 text-sm text-slate-500">Loading your saved places...</span></div> : places.length === 0 ? <div className="mt-8 flex min-h-[32rem] flex-col items-center justify-center rounded-3xl border border-slate-100 px-6 py-12 text-center"><div className="relative h-52 w-72"><Image src="/images/illustrations/saved-places-empty-state.png" alt="Map with a location pin" fill className="object-contain" /></div><h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">No saved places yet</h2><p className="mt-2 max-w-lg text-base text-slate-500">Save a destination you&apos;re thinking about, and find it here later.</p><button type="button" onClick={openCreate} className="mt-7 rounded-xl bg-blue-600 px-16 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700">Save a place</button></div> : <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{places.map((place, index) => <button key={place.publicId} type="button" onClick={() => openDetail(place.publicId)} className="group overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition hover:-translate-y-1 hover:shadow-[0_6px_18px_rgba(15,23,42,0.08)]"><div className={`flex h-36 items-center justify-center bg-gradient-to-br ${cardGradients[index % cardGradients.length]}`}>{place.unsplashImageUrl ? <PhotoPanel place={place} attribution={false} /> : <MapPin size={64} strokeWidth={1.5} className="text-white/80" fill="currentColor" aria-hidden="true" />}</div><div className="p-5"><StatusBadge status={place.status} /><h2 className="mt-4 truncate text-lg font-extrabold text-slate-950">{place.destination}</h2><p className="mt-1.5 min-h-12 line-clamp-2 text-sm leading-6 text-slate-500">{place.note || "No note added yet."}</p></div></button>)}</div>}
     {action === "create" && <CreateModal onClose={openBase} onSaved={handleSaved} />}
     {isDetailAction && <DetailModal place={visibleDetail} error={visibleDetailError} onClose={openBase} onDelete={openDelete} />}
     {action === "delete" && <DeleteModal place={visibleDetail} onClose={openBase} onDeleted={handleDeleted} />}

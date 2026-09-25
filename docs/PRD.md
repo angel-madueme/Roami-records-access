@@ -1,93 +1,76 @@
-# Roami — AI Integration Slice PRD
+# Roami — Records and Access Slice PRD
 
 ## 1. Overview
-This is Assessment 3 of 4 in a Product Engineering Bootcamp: a single AI-powered flow for Roami, a travel planning app. A user uploads a photo of messy trip notes (handwritten notes, a screenshot, a booking confirmation), a background job processes it through a real AI model, and a structured itinerary appears — destination, dates, and a categorized list of activities. One follow-up action lets the user expand the itinerary with more suggested detail.
+This is Assessment 4 of 4 in a Product Engineering Bootcamp: a records-and-access slice for Roami, a travel planning app. A signed-in user can create, view, and delete "Saved Places" — a lightweight record of a destination they're considering (name, a note, a status). The entire point of this assessment is proving that no user can ever reach another user's saved places, through any route, by any means.
 
-This project began as a full copy of the Assessment 1 authentication project, with its `.git` history removed and its files flattened into this project's own root — not a nested copy. The full authentication flow (signup, email verification, signin, forgot/reset password, and the dashboard shell) is reused and kept exactly as built, per the brief's explicit allowance: "No account system beyond what is needed to have a user, and reusing Assessment 1 is fine." This is a deliberate choice to have a real, self-created account rather than a seeded test user, and is disclosed here per the same brief instruction that governed Assessment 2's reuse.
-
-Deliberately not included: no editing, sharing, or exporting of the generated itinerary. No saving multiple itineraries or any trip-management functionality beyond this one upload-to-result flow. No landing or marketing page.
+This project began as a full copy of the Assessment 3 (AI Integration) project, with `.git` history removed and files flattened into this project's own root — not a nested copy. Both the complete authentication flow (from Assessment 1) and the complete AI itinerary-extraction flow (from Assessment 3, including Gemini, DeepSeek, and Unsplash integrations) are carried over and kept fully intact and functional. This is a deliberate choice, disclosed here per the same brief instruction that has governed reuse across every prior assessment ("reuse is not cheating; hiding it is"). The AI features are not part of this assessment's scope, are not extended or modified here, and are not what's being graded — they exist in the codebase simply because this project was built on top of a working prior slice rather than a fresh scaffold.
 
 ## 2. Goals
-- A single, complete AI flow: upload → background job → structured result → one follow-up action.
-- Genuine use of two different models, each doing the part it's actually suited for, not two prompts on one model used interchangeably.
-- Structured, validated output at every stage — no free text the application has to parse or guess at.
-- Honest failure handling: a failed extraction is shown truthfully, not hidden or silently retried without the user knowing.
+- Every "Saved Place" record is reachable only by the user who created it — never another user, through any request shape (a manipulated URL, a replayed request, a direct API call).
+- Ownership is enforced by scoping every query to the authenticated user at the query level, never checked after the data is already fetched.
+- No raw database identifier is ever exposed in a URL or in the interface.
+- Every deletion is recorded in an audit trail before the record disappears.
+- A measurable, documented reduction in query count across the three main actions (list, view, delete).
 
 ## 3. Tech stack
 - Framework: Next.js, App Router
 - Language: TypeScript
 - ORM: Prisma
-- Database: PostgreSQL (a dedicated database for this project, separate from Assessment 1 and 2's)
-- Vision/extraction model: Google Gemini 3 Flash Preview (`gemini-3-flash-preview`, official Google SDK), chosen for its multimodal vision capability — it reads the uploaded photo directly and returns structured JSON. Gemini 2.5 Flash was the original plan, but it was inaccessible to new API keys as of this build; Gemini 3 Flash Preview was substituted as Google’s documented direct replacement.
-- Text/follow-up model: DeepSeek V4.1 Flash, called with the current API identifier `deepseek-flash` via the official OpenAI SDK pointed at DeepSeek's API endpoint (DeepSeek's API is OpenAI-compatible) — chosen because the follow-up action is text-only and doesn't need vision, so a separate, simpler model handles it.
-- Image search: Unsplash API, used to fetch a real photo matching the extracted destination name. This is not an AI model call — it's a straightforward search-and-fetch, used to add a genuine, non-AI third-party API integration to the build, disclosed here as a deliberate learning choice beyond the assessment's minimum requirement.
-- Validation: Zod, for validating structured output from both models before it's trusted or stored.
+- Database: PostgreSQL (a dedicated database for this project, separate from every prior assessment's)
+- Auth/session: reused unchanged from Assessment 1 — full signup, email verification, signin, forgot/reset password, database-backed sessions.
+- AI integration: reused unchanged from Assessment 3 (Gemini extraction, DeepSeek expansion, Unsplash photo lookup) — present in the codebase, out of scope for this assessment, not touched or extended.
+- Validation: Zod
 - Styling: Tailwind CSS
-- Auth/session: reused unchanged from Assessment 1 — database-backed sessions, full signup/verify/signin/reset flow.
 
-## 4. Auth carryover (reused from Assessment 1)
-The full authentication flow is reused as-is: signup, email verification (via Nodemailer), signin, forgot/reset password, session management, and the dashboard shell. Nothing about auth was stripped down or simplified for this assessment — a real user signs up and signs in normally, rather than using a seeded test account. This exceeds what the brief requires ("no account system beyond what is needed to have a user") as a deliberate choice for a more complete, portfolio-consistent experience across all four assessment slices.
+## 4. Auth and AI carryover (reused from Assessments 1 and 3)
+Full authentication (signup, email verification, signin, forgot/reset password, session management, dashboard shell) is reused unchanged — a real user signs up and signs in normally, exactly as in Assessments 2 and 3. The complete AI itinerary-extraction flow from Assessment 3 (upload, Gemini extraction, DeepSeek expansion, Unsplash enrichment) is also carried over unchanged and remains fully functional in this codebase. Both are disclosed here explicitly. This assessment's own graded scope is limited entirely to the new "Saved Places" feature described below; the reused features are not re-tested, re-documented in depth, or modified as part of this assessment's work.
 
 ## 5. Screens in scope
-- **Reused from Assessment 1:** signup, verify-email, signin, forgot-password, reset-password (all steps), account-created success screen, dashboard.
-- **New — Upload:** a drop zone for a single image (JPG/PNG, size-limited), with a file preview once selected, and an "Extract itinerary" button.
-- **New — Processing:** an honest status display (pending → processing → done/failed), no fake instant resolution.
-- **New — Result:** the structured itinerary — a destination photo (from Unsplash, with attribution overlay) if one was found, destination name, date range, and a categorized activity list (each with an icon matching its category: transport, lodging, food, sightseeing, and a default for anything else). Includes the "Expand this itinerary" button.
-- **New — Result, no image found:** the same result screen with the photo/attribution area simply omitted — no broken-image placeholder, the layout adapts cleanly.
-- **New — Failed:** a clear failure state (red circular badge, honest message, "Try again" button returning to upload).
+- **Reused, unchanged:** signup, verify-email, signin, forgot-password, reset-password (all steps), account-created success screen, dashboard, the full "Create from notes" AI itinerary flow.
+- **New — Saved Places screen** (not a modal — a real, addressable view reached from the dashboard's "Saved places" sidebar link): two states.
+  - Empty state: "No saved places yet" with a "Save a place" button.
+  - Populated state: a list of the signed-in user's saved places (destination name, a truncated note preview, a status badge), with "Save a place" still available. Each item is clickable.
+- **New — Create form modal:** stacks over the Saved Places screen. Fields: destination name, note (optional), status (Wishlist / Planned / Visited, default Wishlist). "Save" and "Cancel" actions.
+- **New — Detail view modal:** stacks over the Saved Places screen, opened by clicking a list item. Shows destination name, status, full note. Includes a "Delete" button.
+- **New — Delete confirmation modal:** stacks over the Detail view modal. Confirms the destination name being deleted, warns the action can't be undone. "Delete" (destructive styling) and "Cancel" actions.
+
+Per PRD-standard URL-state conventions already used in this codebase (Payments' Plans & Billing modal, the AI Integration flow's Create-from-notes modal), the Saved Places screen and its stacked modals are reachable via URL query parameters (e.g. `?view=saved-places`, `&action=create`, `&action=detail&ref=<publicId>`) so that navigation is fast (no full page reload) while every state remains addressable and bookmarkable, per the brief's explicit requirement.
 
 ## 6. Screens explicitly out of scope
-No landing/marketing page. No editing of the extracted itinerary. No saving, sharing, or exporting. No multi-itinerary history or management. No functionality beyond the one upload-to-result-to-expand flow, reached from the dashboard.
+No landing/marketing page. No editing of a saved place once created. No search, tags, sharing, or collaboration on saved places. No dashboard widgets beyond the existing sidebar entry point. Create, list, view, delete — that is all, per the brief's explicit scope limit.
 
 ## 7. User flow
-1. Signed-in user (via the reused auth flow) reaches the dashboard and navigates to the itinerary-extraction flow.
-2. Uploads a photo of trip notes on the Upload screen. Client-side checks confirm file type and size before submission.
-3. Submission creates a job record (status: PENDING → PROCESSING) and returns immediately — the request is not blocked waiting for the AI call to finish.
-4. A background process picks up the job, sends the image to Gemini with a structured-output schema request (destination, start date, end date, activities — each with a category and title/note).
-5. Gemini's response is validated against the expected schema in application code. If valid, the job is marked DONE with the structured result attached. If invalid or the model call fails, the job is marked FAILED with a recorded error message.
-6. In parallel or immediately after a successful extraction, the destination name is used to query Unsplash for a matching photo. If found, it's attached to the result; if not, or if the Unsplash call fails, the result proceeds without an image — this never blocks or fails the itinerary extraction itself.
-7. The user sees the Processing screen update to the Result screen once the job resolves, showing the structured itinerary.
-8. The user may click "Expand this itinerary," which sends the structured result to DeepSeek with a distinct system prompt (the second role) requesting expanded detail on the existing activities. The response is validated and the activity list updates in place.
-9. If the extraction job fails, the user sees the Failed screen with an honest message and a way to retry.
+1. A signed-in user clicks "Saved places" in the dashboard sidebar, landing on the Saved Places screen (empty or populated).
+2. Clicking "Save a place" opens the create form modal. Submitting creates a new record, closes the modal, and returns to the (now-updated) Saved Places list.
+3. Clicking any saved place in the list opens the detail view modal, showing its full information.
+4. Clicking "Delete" in the detail view opens the delete confirmation modal, stacked on top.
+5. Confirming deletion writes an audit record (who deleted what, when) as part of the same operation that removes the saved place, then closes both modals and returns to the updated (possibly now-empty) Saved Places list.
+6. At every step, every server-side query used to fetch, create, or delete a saved place is scoped to the requesting user's own ID directly in the query — never fetched broadly and filtered afterward.
 
 ## 8. Engineering requirements
-- Official SDKs only for both Gemini and DeepSeek — DeepSeek accessed via the official OpenAI SDK pointed at its compatible endpoint, documented as such.
-- API keys (Gemini, DeepSeek, Unsplash) written into `.env` by hand, never by the agent, with `.env.example` carrying commented placeholders.
-- A configuration file/module holding every changeable value: model identifiers, timeouts, output token caps, temperature, rate limits, and concurrency — not hardcoded inline in route handlers.
-- A written system prompt per model role (Gemini's extraction role, DeepSeek's expansion role), with each parameter justified in the documentation.
-- Structured output requested with an explicit schema from both models, validated in application code (Zod) on receipt — never trusted on the strength of the model returning a 200 response alone. A defined retry and a defined graceful failure for invalid output.
-- A job record in the database for each upload, holding status, attempts, and the error message on failure.
-- A concurrency cap so multiple simultaneous uploads don't fire unlimited simultaneous Gemini calls.
-- Rate limiting on the upload/processing-trigger endpoint and on the "Expand this itinerary" follow-up endpoint.
-- Uploaded images stored in a local filesystem folder (documented explicitly as the local development equivalent of real object storage) — only the storage key/path is held in the database, never the raw file bytes.
-- A timeout on every model call (both Gemini and DeepSeek), with a defined fallback/failure behavior if exceeded.
-- Unsplash API failures or empty results are handled gracefully and never surface as a failure of the overall extraction — the itinerary still succeeds without a photo.
+- Every query scoped to the authenticated user in the query itself (e.g. `WHERE userId = ? AND publicId = ?`), never checked after fetching.
+- No raw database identifiers (Prisma's internal `id`) exposed in any URL or anywhere in the interface — saved places are referenced externally by a separate, non-sequential public identifier.
+- An audit record written for every deletion, capturing who deleted what and when, persisted before or as part of the delete operation itself — never logged after the row is already gone.
+- Conditional views with URL state, so navigation is fast but every view (list, create, detail, delete-confirm) is addressable via the URL.
+- Correct status codes throughout: 401 for no valid session at all, 403 for a valid session attempting to access a record it doesn't own.
+- A measured query count for each of the three main actions (list, view/detail, delete), documented with a stated reduction from the first working version to an optimized version.
+- Database indexes on the columns actually filtered or sorted on (at minimum: `userId`, and the public identifier).
+- Genuine empty states — no placeholder or fake data anywhere.
 
 ## 9. Data model (high level)
 - **User** and **Session** — reused unchanged from Assessment 1.
-- **ItineraryJob** — one row per upload: id, userId, status (PENDING/PROCESSING/DONE/FAILED), attempts, errorMessage (nullable), storageKey (path to the uploaded image on local disk), createdAt, updatedAt.
-- **Itinerary** — the structured result of a successful job: id, jobId (relation), destination, startDate, endDate, unsplashImageUrl (nullable), unsplashPhotographerName (nullable), unsplashPhotographerUrl (nullable), createdAt, updatedAt.
-- **ItineraryActivity** — one row per extracted activity: id, itineraryId (relation), category (enum: TRANSPORT, LODGING, FOOD, SIGHTSEEING, OTHER), title, note, order (integer, to preserve display sequence).
+- **ItineraryJob**, **Itinerary**, **ItineraryActivity** — reused unchanged from Assessment 3, out of this assessment's scope.
+- **SavedPlace** — one row per saved destination: id (internal, never exposed), publicId (a short, random, non-sequential external identifier — the only identifier ever shown in a URL or the UI), userId (relation to User), destination (string), note (string, nullable), status (enum: WISHLIST, PLANNED, VISITED), createdAt, updatedAt.
+- **DeletionAuditLog** — one row per deletion event: id, userId (who performed the deletion), savedPlaceId or its snapshotted identifying data (since the SavedPlace row will no longer exist after deletion — capture enough at delete time, e.g. the destination name and the original publicId, to make the audit record meaningful on its own), deletedAt.
 
 ## 10. Deliverables
-The GitHub repository (`Roami-ai-integration`, separate git history from Assessment 1 and 2); `DOCUMENTATION.md` at the repo root following the 8-section bootcamp template; a LinkedIn post, 200-400 words, teaching one concept from this build.
+The GitHub repository (`Roami-records-access`, separate git history from all three prior assessments); `DOCUMENTATION.md` at the repo root following the 8-section bootcamp template; a LinkedIn post, 200-400 words, teaching one concept from this build.
 
 ## 11. Resolved decisions
+- **publicId format:** Generated with the `nanoid` library, 12 characters, alphanumeric. This is the only identifier for a `SavedPlace` ever exposed in a URL or the UI — the internal Prisma `id` is never sent to the client in any response.
+- **Audit log schema:** `DeletionAuditLog` snapshots the identifying data directly into the audit row at delete time — `userId` (who deleted it), `destination` (the name, captured before deletion), `publicId` (the original public identifier, captured before deletion), `deletedAt`. This makes the audit record fully self-contained and readable on its own even after the `SavedPlace` row no longer exists, rather than depending on a foreign key to a row that's been deleted.
+- **URL query-param scheme:** The Saved Places screen is reached at `/dashboard?view=saved-places`. Stacked states layer on top via additional params: `&action=create` for the create form modal, `&action=detail&ref=<publicId>` for the detail view modal, `&action=delete&ref=<publicId>` for the delete confirmation modal. Closing any modal removes its action/ref params via `router.replace`, returning cleanly to `?view=saved-places`.
+- **Query count measurement:** The three main actions to measure are (a) listing all of a user's saved places, (b) fetching one saved place's detail by `publicId`, (c) deleting one saved place. The "first working version" baseline is whatever the initial naive implementation produces (to be measured once built); the documented reduction will show the actual before/after query count once indexes and any N+1 patterns are addressed.
+- **Index definitions:** A unique index on `SavedPlace.publicId` (since it's the sole lookup key for the detail/delete actions), and an index on `SavedPlace.userId` (since every list query filters by it). `DeletionAuditLog` gets an index on `userId` for potential future audit lookups, though not required by any current query in this assessment's scope.
+- **Attack-testing plan:** Two real user accounts, created through the actual reused signup flow. For each of the three routes (list, detail-by-publicId, delete-by-publicId), the audit table will record: the method and path, what was attempted (e.g. "User B requests User A's publicId directly via curl with User B's own session cookie"), the actual result, and pass/fail. Every route gets tested via at least direct API calls with a mismatched session/publicId combination, and via URL substitution in the browser where applicable.
 
-1. **Model versions:** Gemini 2.5 Flash was the original extraction plan, but as of September 23, 2026 it is inaccessible to new API keys even though its official shutdown date has not arrived. The provider returned a 404 directing new projects to Gemini 3 Flash Preview, so `gemini-3-flash-preview` was substituted as Google’s documented direct replacement. It supports multimodal image input and structured outputs. As of September 23, 2026, DeepSeek V4.1 Flash is the newest suitable text model; its current API identifier is `deepseek-flash`. The older `deepseek-v4-flash` name is a retired compatibility alias. DeepSeek is accessed via the OpenAI SDK pointed at `api.deepseek.com`.
-
-2. **Background job mechanism:** An async function is triggered immediately after the upload endpoint responds. No separate queue library or external service (such as Redis or BullMQ) is used. This assessment targets a single-instance local/demo deployment, so a full queue system would add infrastructure this slice does not need. Known limitation: jobs in flight do not survive a server restart; this is documented in Section 7.
-
-3. **Concurrency cap:** No more than 2 Gemini extraction calls may be in flight at once, enforced by an in-memory counter using the same pattern as the rate-limit utilities from prior assessments. A 3rd simultaneous upload waits in a simple queue rather than firing immediately.
-
-4. **Rate limits:** The upload/extraction-trigger endpoint is limited to 5 requests per user per 10 minutes. The “Expand this itinerary” endpoint is limited to 10 requests per user per 10 minutes because it is cheaper and lower-risk than a full extraction. Both endpoints return `429` with a retry indication.
-
-5. **Timeouts:** Each Gemini call has a 30-second timeout. Each DeepSeek call has a 20-second timeout. On timeout, the job is marked `FAILED` with `errorMessage` set to: `The AI service took too long to respond. Please try again.` There is no automatic retry on timeout.
-
-6. **Retry policy for invalid structured output:** If the first response is successful but fails schema validation, the same input is retried once. If the retry also fails validation, the job is marked `FAILED` with the validation error recorded in `errorMessage`. There is no retry on a timeout or provider error (5xx); retries apply only to successful responses that fail schema validation.
-
-7. **Cost model (current pricing as of September 2026):**
-   - **Gemini 3 Flash Preview (`gemini-3-flash-preview`):** $0.50 per 1M input tokens and $3.00 per 1M output tokens, according to Google’s pricing documented for this model as of September 23, 2026. One extraction call (image plus prompt as input, approximately 1,500 tokens; structured JSON output, approximately 300 tokens) costs approximately $0.00165 per run. Gemini 2.5 Flash’s original pricing is no longer the applicable estimate because that model is inaccessible to the new API key used for this build.
-   - **DeepSeek V4.1 Flash:** $0.15 per 1M input tokens and $0.60 per 1M output tokens at the off-peak rate. One expand call (approximately 800 input tokens and 500 output tokens) costs approximately $0.0004 per run.
-   - A full flow (one extraction plus one expand) costs approximately $0.00205, just over two-tenths of a cent. Given Gemini’s free tier and DeepSeek’s 5-million-token free grant for new accounts, actual cost during this assessment’s development and testing is expected to be $0.
-   - No hard spend cap is implemented for this assessment’s scope. The rate limits in point 4 are the practical ceiling on potential spend in a given window.
